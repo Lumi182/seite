@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lumi – E-Mail-Summarizer (n8n Workflow)</title>
+  <meta name="description" content="Lumi E-Mail-Summarizer: Liest neue Gmail-Mails, fasst sie automatisch zusammen und sortiert in Wichtig/Unwichtig.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="favicon.png" />
+  <style>
+    :root { --lumi-blue:#1e88e5; --lumi-blue-600:#1669c1; --text:#111827; --muted:#6b7280; --bg:#f7f8fb; --card:#ffffff; --border:#e5e7eb; }
+    *{box-sizing:border-box}
+    html,body{ margin:0; padding:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--text); background:var(--bg); scroll-behavior:smooth;}
+    a{color:var(--lumi-blue);text-decoration:none}
+    img,video{max-width:100%;display:block}
+
+    .container{max-width:1100px;margin:0 auto;padding:0 1.25rem}
+    .annc{background:#111827;color:#e5e7eb;font-size:.9rem;padding:.5rem 0;text-align:center}
+    header{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--border)}
+    .nav{display:flex;align-items:center;justify-content:space-between;height:64px}
+    .brand{display:flex;gap:.6rem;align-items:center;font-weight:700}
+    .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--lumi-blue),#60a5fa)}
+    .menu{display:flex;gap:1rem;color:var(--muted)}
+    .menu a{color:var(--muted)} .menu a:hover{color:var(--text)}
+    .cta{display:inline-flex;align-items:center;gap:.5rem;background:var(--lumi-blue);color:#fff;padding:.65rem 1rem;border-radius:.7rem;font-weight:600}
+    .cta:hover{background:var(--lumi-blue-600)}
+    .hero{padding:64px 0 32px}
+    .hero h1{font-size:clamp(1.8rem,3.5vw,3rem);line-height:1.1;margin:0 0 .75rem}
+    .hero p{color:var(--muted);font-size:1.05rem;margin:0 0 1.2rem}
+    .hero .actions{display:flex;gap:.75rem;flex-wrap:wrap}
+
+    .section-title{font-size:1.4rem;margin:28px 0 14px;text-align:center}
+    .subtle{color:var(--muted);text-align:center;margin-top:-4px}
+
+    /* Grid + Card */
+    .grid{display:grid;grid-template-columns:repeat(1,1fr);gap:16px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:box-shadow .25s, transform .1s}
+    .card:hover{box-shadow:0 8px 24px rgba(17,24,39,.08);transform:translateY(-1px)}
+
+    /* === Kachel-Header mit Slider === */
+    .thumb{
+      position:relative;
+      aspect-ratio:16/9;
+      background:linear-gradient(150deg,#e3f2fd,#fff);
+      border-bottom:1px solid var(--border);
+      overflow:hidden;
+    }
+    /* Größeres Preis-Badge oben rechts */
+    .pill{
+      position:absolute; top:10px; right:10px;
+      background:#111827; color:#fff;
+      font-weight:800; font-size:1rem;
+      padding:.4rem .7rem; border-radius:.65rem;
+      box-shadow:0 2px 8px rgba(0,0,0,.15);
+    }
+
+    /* Slides */
+    .slides{ position:relative; width:100%; height:100%; }
+    .slide{
+      position:absolute; inset:0;
+      display:grid; place-items:center;
+      transition:transform .35s ease;
+      will-change: transform;
+      background:transparent;
+    }
+    .slide svg{ width:64px; height:64px; opacity:.9; }
+    .slide video{ width:100%; height:100%; object-fit:cover; }
+
+    /* Pfeile (grau) */
+    .nav-arrow{
+      position:absolute; top:50%; transform:translateY(-50%);
+      width:42px; height:42px; display:grid; place-items:center;
+      border-radius:999px; background:rgba(243,244,246,.95); /* gray-100 */
+      border:1px solid var(--border); cursor:pointer;
+      box-shadow:0 2px 8px rgba(0,0,0,.10); user-select:none;
+    }
+    .nav-arrow:hover{ background:#ffffff; }
+    .nav-arrow.left{ left:10px; }
+    .nav-arrow.right{ right:10px; }
+    .nav-arrow i{
+      display:block; width:14px; height:14px; border-top:2px solid #6b7280; border-right:2px solid #6b7280; /* gray-500 */
+    }
+    .nav-arrow.left i{ transform:rotate(-135deg); }
+    .nav-arrow.right i{ transform:rotate(45deg); }
+
+    .svg{opacity:.9}
+    .card-body{padding:14px 14px 12px;display:flex;gap:10px;flex-direction:column}
+    .card h3{font-size:1.15rem;margin:0}
+    .desc{color:var(--muted);font-size:.98rem;margin:0}
+    .badges{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:2px}
+    .badge{font-size:.72rem;padding:.25rem .5rem;border-radius:999px;border:1px solid var(--border);color:#374151;background:#f9fafb}
+    .card-footer{display:flex;gap:.5rem;margin-top:auto;flex-wrap:wrap}
+    .btn{flex:1 1 auto;text-align:center;padding:.6rem .8rem;border-radius:.6rem;border:1px solid var(--border);font-weight:600;cursor:pointer}
+    .btn.primary{background:var(--lumi-blue);color:#fff;border-color:transparent}
+    .btn.primary:hover{background:var(--lumi-blue-600)}
+    .btn.secondary:hover{background:#eef2f7}
+    .btn.paypal{background:#fff} .btn.paypal:hover{background:#eef2f7}
+
+    /* Produkt-Detail */
+    .product{padding:24px 0 8px}
+    .product .wrap{background:#fff;border:1px solid var(--border);border-radius:16px;padding:18px;max-width:860px;margin:0 auto}
+    .product h2{margin:0 0 8px}
+    .product ul{margin:6px 0 14px;padding-left:18px}
+    .product .meta{color:var(--muted);margin:6px 0 12px}
+    .product .actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:10px}
+    .back-link{display:inline-block;margin-top:10px;color:var(--muted)}
+
+    /* Kontakt & Footer */
+    .contact{padding:28px 0}
+    .contact-card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;align-items:center;gap:14px;max-width:560px;margin:0 auto}
+    .avatar{width:72px;height:72px;object-fit:cover;border:1px solid var(--border);border-radius:8px}
+    .contact h3{margin:0 0 4px;font-size:1.1rem}
+    .contact p{margin:0;color:var(--muted)}
+    .contact .row{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+    .chip{font-size:.85rem;padding:.35rem .6rem;border:1px solid var(--border);border-radius:999px;background:#f9fafb}
+    footer{margin-top:48px;border-top:1px solid var(--border);padding:28px 0;color:var(--muted);font-size:.95rem}
+
+    /* (Optional) Success/Download-Ansicht – nicht nötig bei Redirect zu thanks.html */
+    .success{padding:24px 0}
+    .success .wrap{background:#fff;border:1px solid var(--border);border-radius:16px;padding:18px;max-width:860px;margin:0 auto;text-align:center}
+    .spinner{width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:var(--lumi-blue);border-radius:50%;margin:12px auto;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .muted{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="annc">Kostenloser Support bei der Ersteinrichtung – in 48h startklar.</div>
+
+  <header>
+    <div class="container nav">
+      <div class="brand"><div class="logo"></div><span>Lumi</span></div>
+      <nav class="menu" aria-label="Hauptnavigation">
+        <a href="#workflows">Workflows</a>
+        <a href="#kontakt">Kontakt</a>
+      </nav>
+      <a class="cta" href="#workflows">Jetzt kaufen</a>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <h1>Automationen, die für dich arbeiten.</h1>
+      <p>Fertig konfigurierter n8n-Workflow: Liest neue Gmail-Mails, fasst sie zusammen und sortiert in <strong>Wichtig</strong>/<strong>Unwichtig</strong>.</p>
+      <div class="actions">
+        <a class="cta" href="#workflows">Workflow ansehen</a>
+        <a class="cta ghost" href="#kontakt">Wie es funktioniert? Frag uns</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="workflows" class="container" style="padding:8px 0 12px">
+    <h2 class="section-title">Unser Workflow</h2>
+    <p class="subtle">Einrichten, Zeit sparen, Überblick behalten.</p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <!-- PRODUCT DETAILS -->
+  <section id="email-summarizer" class="container product" hidden>
+    <div class="wrap">
+      <h2>E-Mail-Summarizer <span class="meta">– 5 €</span></h2>
+      <p class="meta">Neue Gmail-Mails automatisch zusammenfassen & in Wichtig/Unwichtig einteilen. Täglicher Report per Mail.</p>
+      <h3>Das bekommst du</h3>
+      <ul>
+        <li><strong>Schritt-für-Schritt Video-Anleitung</strong> bis zur ersten funktionierenden Automation.</li>
+        <li><strong>Die Automatisierung</strong> inkl. Klassifizierung wichtig/unwichtig.</li>
+        <li><strong>Dateien</strong>: <code>GMail_Summarizer.json</code>, <code>ANLEITUNG.txt</code>, <code>Gmail_API.txt</code>, <code>Installationsprozess.mp4</code>, <code>Showcase.mp4</code>, <code>gemini_api_showCase.mp4</code></li>
+      </ul>
+      <div class="actions">
+        <div id="paypal-buttons"></div>
+        <a class="back-link" href="#workflows">Zurück</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Kontakt -->
+  <section id="kontakt" class="container contact">
+    <h2 class="section-title">Dein Ansprechpartner</h2>
+    <div class="contact-card">
+      <img src="jose.jpg" alt="Jose – Ansprechpartner bei Lumi" class="avatar">
+      <div>
+        <h3>Jose</h3>
+        <p>Beratung & Einrichtung – Antwort in <strong>≤ 24h</strong></p>
+        <div class="row">
+          <a class="chip" href="mailto:diez12488@gmail.com">diez12488@gmail.com</a>
+          <a class="chip" href="#email-summarizer">Details</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container" style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+      <div>© <span id="year"></span> Lumi – Automationen.</div>
+      <div>
+        <a href="impressum.html">Impressum</a> ·
+        <a href="datenschutz.html">Datenschutz</a> ·
+        <a href="#email-summarizer">Produkt</a>
+      </div>
+      <div>Fragen? <a href="mailto:diez12488@gmail.com">diez12488@gmail.com</a></div>
+    </div>
+  </footer>
+
+  <!-- PayPal SDK (nur einmal) -->
+  <script src="https://www.paypal.com/sdk/js?client-id=AeAtJMWcB0WzIp8zs_fq6hbHFflYwAtJdz85OTmWxS-dXc_K30h_H26v0COvspwry3ujqPXH_vtinTzW&currency=EUR&intent=capture&components=buttons"></script>
+
+
+  <script>
+    const SEND_URL = "/send-link"; // Plan-B-Endpunkt
+
+    // Produktkarte rendern
+    const workflows = [{
+      id:'email-summarizer',
+      name:'E-Mail-Summarizer',
+      desc:'Gmail lesen, zusammenfassen, in Wichtig/Unwichtig sortieren. Report per E-Mail.',
+      tags:['Gmail','Gemini','n8n'],
+      price:'5 €',
+      image:'svg-mail',
+      actions:{ details:'#email-summarizer' }
+    }];
+
+    const grid = document.getElementById('grid');
+    const svgMap = {
+      'svg-mail': `<svg class="svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>`
+    };
+
+    // Karte mit Slider + Pfeilen
+    const cardHTML = (wf) => `
+      <article class="card" id="card-${wf.id}">
+        <div class="thumb">
+          <span class="pill">${wf.price}</span>
+
+          <div class="slides">
+            <!-- Slide 0: Cover/Icon -->
+            <div class="slide slide-cover" style="transform:translateX(0%)">
+              <div>${svgMap[wf.image] || ''}</div>
+            </div>
+
+            <!-- Slide 1: Video -->
+            <div class="slide slide-video" style="transform:translateX(100%)">
+              <video src="UseCase.mp4" controls preload="metadata" playsinline></video>
+            </div>
+          </div>
+
+          <!-- Pfeile -->
+          <button class="nav-arrow left"  type="button" aria-label="Zurück"><i></i></button>
+          <button class="nav-arrow right" type="button" aria-label="Weiter"><i></i></button>
+        </div>
+
+        <div class="card-body">
+          <h3>${wf.name}</h3>
+          <p class="desc">${wf.desc}</p>
+          <div class="badges">${wf.tags.map(t=>`<span class="badge">${t}</span>`).join('')}</div>
+          <div class="card-footer">
+            <a class="btn secondary" href="${wf.actions.details}">Details</a>
+            <a class="btn paypal" href="#${wf.id}">Mit PayPal zahlen</a>
+          </div>
+        </div>
+      </article>`;
+
+    grid.innerHTML = workflows.map(cardHTML).join('');
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Slider/Carousel je Karte initialisieren (2 Slides: Cover <-> Video)
+    function initCarousel(card){
+      const slides = Array.from(card.querySelectorAll('.slide'));
+      const btnL = card.querySelector('.nav-arrow.left');
+      const btnR = card.querySelector('.nav-arrow.right');
+      const video = card.querySelector('video');
+      let idx = 0; // 0 = Cover, 1 = Video
+
+      const render = () => {
+        slides.forEach((el, i) => el.style.transform = `translateX(${(i - idx) * 100}%)`);
+        // Auto-Pause wenn wir vom Video weg sliden
+        if (idx !== 1 && video && !video.paused) video.pause();
+      };
+
+      btnL.addEventListener('click', () => { idx = Math.max(0, idx - 1); render(); });
+      btnR.addEventListener('click', () => { idx = Math.min(slides.length - 1, idx + 1); render(); });
+      // Klick auf Cover → nach rechts sliden
+      slides[0].addEventListener('click', () => { idx = 1; render(); });
+
+      render();
+    }
+    document.querySelectorAll('.card').forEach(initCarousel);
+
+    // Mini-Router (Detailsektion zeigen)
+    const sections = {
+      list:    document.getElementById('workflows'),
+      contact: document.getElementById('kontakt'),
+      product: document.getElementById('email-summarizer'),
+    };
+    function resetSections(){ sections.list.style.display=''; sections.contact.style.display=''; sections.product.hidden=true; }
+    function showSection(hash){
+      resetSections();
+      if (hash === 'email-summarizer') {
+        sections.list.style.display='none';
+        sections.contact.style.display='none';
+        sections.product.hidden=false;
+      }
+      if (hash) window.scrollTo({top:0, behavior:'smooth'});
+    }
+    function handleRoute(){ const h=(location.hash||'').replace('#',''); h?showSection(h):resetSections(); }
+    window.addEventListener('hashchange', handleRoute);
+    document.addEventListener('DOMContentLoaded', handleRoute);
+
+    // PayPal Smart Buttons im Detailbereich (Plan B: /send-link)
+    const PRICE_EUR = "5.00";
+    if (document.getElementById("paypal-buttons")) {
+      paypal.Buttons({
+        style: { layout:'vertical', shape:'rect', label:'paypal' },
+        createOrder: (data, actions) => actions.order.create({
+          purchase_units: [{ description:"Lumi – E-Mail-Summarizer", amount:{ currency_code:"EUR", value:PRICE_EUR } }]
+        }),
+        onApprove: (data, actions) => actions.order.capture().then((details) => {
+          const buyerEmail = details?.payer?.email_address || "";
+          return fetch(SEND_URL, {
+            method:"POST",
+            headers:{ "Content-Type":"application/json" },
+            body: JSON.stringify({ email: buyerEmail, orderID: data.orderID })
+          })
+          .then(async r => { const raw = await r.text(); try{ return JSON.parse(raw);}catch{ return { ok:false, message: raw||"Unerwartete Antwort von /send-link"}; } })
+          .then(res => {
+            const url = new URL("thanks.html", window.location.href);
+            if (res.ok && res.downloadUrl) {
+              url.searchParams.set("downloadUrl", res.downloadUrl);
+              if (res.expiresAt) url.searchParams.set("expiresAt", res.expiresAt);
+              if (res.emailed)   url.searchParams.set("emailed", "true");
+            } else {
+              url.searchParams.set("error", res.message || "Konnte den Download-Link nicht erzeugen.");
+            }
+            window.location.href = url.toString();
+          })
+          .catch(err => {
+            const url = new URL("thanks.html", window.location.href);
+            url.searchParams.set("error", err.message || "Unerwarteter Fehler");
+            window.location.href = url.toString();
+          });
+        }),
+        onCancel: () => {
+          const url = new URL("thanks.html", window.location.href);
+          url.searchParams.set("error", "Zahlung abgebrochen");
+          window.location.href = url.toString();
+        },
+        onError: (err) => {
+          const url = new URL("thanks.html", window.location.href);
+          url.searchParams.set("error", err?.message || "PayPal-Fehler");
+          window.location.href = url.toString();
+        }
+      }).render('#paypal-buttons');
+    }
+  </script>
+</body>
+</html>

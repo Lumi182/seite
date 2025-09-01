@@ -1,0 +1,6 @@
+cd "C:\Users\User\Desktop\Webseite"
+$env:JWT_SECRET="lumi_super_secret_change_me"
+node .\server.js
+
+
+http://127.0.0.1:3001/webseite.html
